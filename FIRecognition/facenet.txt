@@ -1,0 +1,66 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision.transforms as transforms
+from torchvision import models
+from PIL import Image
+import cv2
+import pickle
+import os
+from sklearn.metrics.pairwise import cosine_similarity
+
+# Use a pre-trained MTCNN model for face detection
+from facenet_pytorch import MTCNN
+
+# Use a pre-trained VGGFace model for face recognition
+from facenet_pytorch import InceptionResnetV1, prewhiten
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Load MTCNN model for face detection
+mtcnn = MTCNN(keep_all=True, device=device)
+
+# Load InceptionResnetV1 model for face recognition
+model = InceptionResnetV1(pretrained='vggface2').eval().to(device)
+
+# Load image dataset and other necessary data
+imageDataset = pickle.load(open(os.path.join("PickleFile", 'FinalFullPictureDataset.pkl'), 'rb'))
+feature_list = torch.Tensor(pickle.load(open(os.path.join("PickleFile", 'FeatureEmbeddings.pkl'), 'rb')))
+filenames = pickle.load(open(os.path.join("PickleFile", 'FinalFilenames.pkl'), 'rb'))
+
+
+def upload_img(img_path):
+    sample_img = cv2.imread(img_path)
+    sample_img = cv2.cvtColor(sample_img, cv2.COLOR_BGR2RGB)  # Convert image to RGB
+
+    boxes, _ = mtcnn.detect(sample_img)
+
+    if boxes is None:
+        print("Face not Detected")
+    else:
+        boxes = boxes[0].astype(int)
+        x, y, width, height = boxes
+        face = sample_img[y:y + height, x:x + width]
+        face = Image.fromarray(face)
+        face = transforms.Resize((160, 160))(face)
+        face = transforms.ToTensor()(face).unsqueeze(0).to(device)
+
+        # Face recognition
+        with torch.no_grad():
+            embeddings = model(prewhiten(face))
+
+        # Find the cosine distance of uploaded image with all the image feature list
+        similarity = F.cosine_similarity(embeddings, feature_list)
+        if torch.max(similarity) >= 0.70:
+            _, idx = torch.max(similarity, dim=0)
+            idx = idx.item()
+            picture = Image.fromarray(imageDataset[idx])
+            # picture = picture.resize((500, 300))
+            print("PassPort Number: ", filenames[idx])
+            picture.show()
+        else:
+            print("Unknown")
+
+
+# Call the function
+upload_img("151698OK.jpeg")
