@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Tracking Number</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-image: url('static/images.jpeg');
+            background-size: auto 80%;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-color: #f0f0f0;
+            color: white;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            color: white;
+        }
+
+        #uploadForm {
+            margin-bottom: 20px;
+            color: white;
+        }
+
+        #resultsContainer {
+            text-align: center;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            width: 80%;
+            max-width: 500px;
+            color: black;
+        }
+
+        .resultItem {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            color: #333;
+        }
+
+        .resultItem .trackingNumber {
+            font-weight: bold;
+        }
+
+        .resultItem .trackingNumber.normal {
+            color: green;
+        }
+
+        .resultItem .trackingNumber.unknown {
+            color: blue;
+        }
+
+        .resultItem .trackingNumber.faceNotFound {
+            color: red;
+        }
+
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Customize input and button text color */
+        input[type="file"],
+        button {
+            color: white;
+            background-color: green;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: darkgreen;
+        }
+
+        /* Image preview styles */
+        #imageContainer {
+            max-width: 500px;
+            height: 300px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        #imagePreview {
+            width: 100%;
+            height: auto;
+            display: none;
+        }
+
+        /* Footer styles */
+        footer {
+            position: fixed;
+            bottom: 0;
+            right: 0;
+            left: 0; /* Extend footer across the full width */
+            padding: 10px;
+            display: flex; /* Use flexbox for layout */
+            justify-content: space-between; /* Space items evenly */
+            align-items: center; /* Center content vertically */
+            color: black; /* Set text color to black */
+            background-color: #f0f0f0;
+        }
+
+        footer img {
+            width: 90px;
+            height: auto;
+            align-self: flex-end; /* Align logo to the bottom */
+        }
+
+        .copyright-text {
+            position: relative;
+            text-align: center;
+            width: 100%;
+            padding: 10px;
+        }
+
+        .copyright-text span {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Tracking Number</h1>
+
+    <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" name="file" id="fileInput" accept="image/*" onchange="previewImage(event)">
+        <button type="button" onclick="uploadImage()">Upload</button>
+        <div class="loader" id="loader"></div>
+    </form>
+
+    <div id="resultsContainer"></div>
+
+    <!-- Image preview container -->
+    <div id="imageContainer">
+        <br>
+        <img id="imagePreview" src="#" alt="Uploaded Image">
+    </div>
+
+    <!-- Footer with dynamic copyright text -->
+    <footer>
+        <div class="copyright-text">
+            <span id="copyright">Copyright © bikasuzzaman 2024</span>
+        </div>
+        <img src="static/ml.jpeg" alt="Logo">
+    </footer>
+
+    <script>
+        function uploadImage() {
+            const form = document.getElementById('uploadForm');
+            const formData = new FormData(form);
+            const loader = document.getElementById('loader');
+
+            loader.style.display = 'block'; // Show loader
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayResults(data);
+                loader.style.display = 'none'; // Hide loader after results are displayed
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                loader.style.display = 'none'; // Hide loader on error
+            });
+        }
+
+        function displayResults(results) {
+            const resultsContainer = document.getElementById('resultsContainer');
+            resultsContainer.innerHTML = ''; // Clear previous results
+
+            results.forEach(result => {
+                const status = result.status;
+                const trackingNumber = result['Tracking Number'];
+
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'resultItem';
+
+                const statusSpan = document.createElement('span');
+                statusSpan.textContent = `Status: ${status}, `;
+
+                const trackingNumberSpan = document.createElement('span');
+                trackingNumberSpan.textContent = `Tracking Number: ${trackingNumber}`;
+
+                // Set color based on tracking number value
+                if (trackingNumber.toLowerCase() === 'unknown') {
+                    trackingNumberSpan.className = 'trackingNumber unknown';
+                } else if (trackingNumber.toLowerCase() === 'face not found') {
+                    trackingNumberSpan.className = 'trackingNumber faceNotFound';
+                } else {
+                    trackingNumberSpan.className = 'trackingNumber normal';
+                }
+
+                resultDiv.appendChild(statusSpan);
+                resultDiv.appendChild(trackingNumberSpan);
+
+                resultsContainer.appendChild(resultDiv);
+            });
+        }
+
+        function previewImage(event) {
+            const file = event.target.files[0];
+            const imagePreview = document.getElementById('imagePreview');
+            const resultsContainer = document.getElementById('resultsContainer');
+
+            // Clear previous results
+            resultsContainer.innerHTML = '';
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block'; // Show image preview
+                }
+                reader.readAsDataURL(file);
+            } else {
+                // Hide image preview if no file is selected
+                imagePreview.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
