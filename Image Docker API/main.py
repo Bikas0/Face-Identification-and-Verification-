@@ -11,11 +11,20 @@ from keras_vggface.vggface import VGGFace
 from keras_vggface.utils import preprocess_input
 import tensorflow as tf
 
-# Configure GPU memory growth for TensorFlow
-physical_devices = tf.config.list_physical_devices('GPU')
-if physical_devices:
-    for device in physical_devices:
+gpu_devices = tf.config.experimental.list_physical_devices('GPU')
+
+if gpu_devices:
+    for device in gpu_devices:
         tf.config.experimental.set_memory_growth(device, True)
+
+    # Set per-process GPU memory fraction
+    tf.config.experimental.set_virtual_device_configuration(
+        gpu_devices[0],
+        [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=int(0.5 * 1024))]
+    )
+else:
+    print("No GPU devices found.")
+
 
 def feature_extractor(img_path):
     model = VGGFace(model='resnet50', include_top=False, input_shape=(224, 224, 3), pooling='avg')
@@ -26,11 +35,12 @@ def feature_extractor(img_path):
     result = model.predict(preprocessed_img).flatten()
     return result
 
+
 def extract_faces_mtcnn(input_folder, output_folder, required_size=(224, 224)):
     detector = MTCNN()
-    # if not os.path.exists(output_folder):
-    #     os.makedirs(output_folder)
-    os.makedirs(output_folder, exist_ok=True)
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+    # os.makedirs(output_folder, exist_ok=True)
 
     for filename in os.listdir(input_folder):
         img_path = os.path.join(input_folder, filename)
@@ -61,7 +71,9 @@ def extract_faces_mtcnn(input_folder, output_folder, required_size=(224, 224)):
                 output_path = os.path.join(output_folder, face_filename)
                 cv2.imwrite(output_path, face_array)
 
+
 def delete_files_in_folder(folder_path):
+    print(folder_path)
     try:
         files = os.listdir(folder_path)
         for file_name in files:
@@ -71,18 +83,20 @@ def delete_files_in_folder(folder_path):
     except Exception as e:
         print(f"An error occurred: {e}")
 
+
 def new_pickle_file(new_image_dir, update_face_dir):
 
-    pickle_file_dir = "/home/bikas/Desktop/IR/pickle"
-    filenames_pickle_path = os.path.join(pickle_file_dir, 'FinalFilenames.pkl')
-    features_pickle_path = os.path.join(pickle_file_dir, 'FeatureEmbeddings.pkl')
+    os.makedirs("pklfile", exist_ok=True)
 
-    # Initialize existing data
-    if os.path.exists(filenames_pickle_path) and os.path.exists(features_pickle_path):
-        existing_filenames = pickle.load(open(filenames_pickle_path, 'rb'))
-        existing_features = pickle.load(open(features_pickle_path, 'rb'))
-    else:
+    # Load existing pickle files if they exist, otherwise initialize empty lists
+    try:
+        existing_filenames = pickle.load(open(os.path.join("pklfile", 'FinalFilenames.pkl'), 'rb'))
+    except (FileNotFoundError, EOFError):
         existing_filenames = []
+
+    try:
+        existing_features = pickle.load(open(os.path.join("pklfile", 'FeatureEmbeddings.pkl'), 'rb'))
+    except (FileNotFoundError, EOFError):
         existing_features = []
 
     image_files = os.listdir(new_image_dir)
@@ -124,20 +138,22 @@ def new_pickle_file(new_image_dir, update_face_dir):
         features.append(feature_extractor(os.path.join(update_face_dir, file)))
 
     # Convert features to numpy array
-    if existing_features:
-        existing_features = np.array(existing_features)
-        features = np.array(features)
-        updated_features = np.vstack((existing_features, features))
-    else:
-        updated_features = np.array(features)
+    features = np.array(features)
 
-    pickle.dump(existing_filenames, open(filenames_pickle_path, 'wb'))
-    pickle.dump(updated_features, open(features_pickle_path, 'wb'))
+    # Combine new data with existing data
+    if len(existing_features) == 0:
+        updated_features = features
+    else:
+        updated_features = np.concatenate((existing_features, features), axis=0)
+
+    pickle.dump(existing_filenames, open(os.path.join("pklfile", 'FinalFilenames.pkl'), 'wb'))
+    pickle.dump(updated_features, open(os.path.join("pklfile", 'FeatureEmbeddings.pkl'), 'wb'))
 
     # Clean up the new_pickle and new_extract_face directories
-    delete_files_in_folder(update_face_dir)
-    # Delete the directory and all its contents
-    # shutil.rmtree(update_face_dir)
+    # for folder in [update_face_dir]:
+    #     delete_files_in_folder(folder)
+    shutil.rmtree(update_face_dir)
+
 
 # Example usage
-new_pickle_file("/home/hajj_images", "new_extract_face")
+new_pickle_file("C:/Users/HP/Desktop/HajjProject/Ppp", "new_extract_face")
